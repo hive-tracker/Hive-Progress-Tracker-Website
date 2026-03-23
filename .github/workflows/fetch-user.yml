@@ -8,12 +8,16 @@ on:
         required: true
         type: string
 
+permissions:
+  contents: write
+
 jobs:
   fetch:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v3
+    - name: Checkout repo
+      uses: actions/checkout@v3
 
     - name: Fetch Hive Stats
       run: |
@@ -22,9 +26,12 @@ jobs:
         curl -s "https://api.playhive.com/v0/game/all/all/$USER" > data/$USER.json
 
     - name: Commit results
+      env:
+        TOKEN: ${{ secrets.WEB_TOKEN }}
       run: |
+        USER="${{ github.event.inputs.username }}"
         git config user.name "github-actions"
         git config user.email "github-actions@github.com"
-        git add data/*.json
-        git commit -m "Updated stats for ${{ github.event.inputs.username }}" || echo "No changes"
-        git push
+        git add data/$USER.json
+        git commit -m "Updated stats for $USER" || exit 0
+        git push https://$TOKEN@github.com/raid2256/Hive-Progress-Tracker-Website.git HEAD:main
