@@ -1,17 +1,49 @@
+const REPO_OWNER = "hive-tracker";
+const REPO_NAME = "Hive-Progress-Tracker-Website";
+
+async function addToQueue(username) {
+  const url = `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents/queue.txt`;
+
+  const res = await fetch(url);
+  const file = await res.json();
+  const sha = file.sha;
+  const content = atob(file.content);
+
+  const newContent = content + username + "\n";
+
+  await fetch(url, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      message: `Queue ${username}`,
+      content: btoa(newContent),
+      sha
+    })
+  });
+}
+
+async function waitForStats(username) {
+  for (let i = 0; i < 60; i++) {
+    const res = await fetch(`data/${username}.json?cacheBust=${Date.now()}`);
+    if (res.ok) return await res.json();
+    await new Promise(r => setTimeout(r, 2000));
+  }
+  return null;
+}
+
 async function loadStats() {
   const user = document.getElementById("username").value;
   if (!user) return;
 
   document.getElementById("results").innerHTML = "Loading...";
 
-  const res = await fetch(`https://api.playhive.com/v0/game/all/all/${user}`);
+  await addToQueue(user);
+  const data = await waitForStats(user);
 
-  if (!res.ok) {
-    document.getElementById("results").innerHTML = "User not found.";
+  if (!data) {
+    document.getElementById("results").innerHTML = "Timed out.";
     return;
   }
-
-  const data = await res.json();
 
   let html = "";
   for (const mode in data) {
