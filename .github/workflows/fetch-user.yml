@@ -1,12 +1,9 @@
 name: Fetch Hive User Stats
 
 on:
-  workflow_dispatch:
-    inputs:
-      username:
-        description: "Hive username"
-        required: true
-        type: string
+  push:
+    paths:
+      - "search.txt"
 
 permissions:
   contents: write
@@ -19,19 +16,19 @@ jobs:
     - name: Checkout repo
       uses: actions/checkout@v3
 
+    - name: Read username
+      id: readuser
+      run: echo "USER=$(cat search.txt)" >> $GITHUB_ENV
+
     - name: Fetch Hive Stats
       run: |
-        USER="${{ github.event.inputs.username }}"
         mkdir -p data
-        curl -s "https://api.playhive.com/v0/game/all/all/$USER" > data/$USER.json
+        curl -s "https://api.playhive.com/v0/game/all/all/${USER}" > data/${USER}.json
 
     - name: Commit results
-      env:
-        TOKEN: ${{ secrets.WEB_TOKEN }}
       run: |
-        USER="${{ github.event.inputs.username }}"
         git config user.name "github-actions"
         git config user.email "github-actions@github.com"
-        git add data/$USER.json
-        git commit -m "Updated stats for $USER" || exit 0
-        git push https://$TOKEN@github.com/raid2256/Hive-Progress-Tracker-Website.git HEAD:main
+        git add data/${USER}.json
+        git commit -m "Updated stats for ${USER}" || echo "No changes"
+        git push
