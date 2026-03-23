@@ -1,0 +1,30 @@
+name: Fetch Hive User Stats
+
+on:
+  workflow_dispatch:
+    inputs:
+      username:
+        description: "Hive username"
+        required: true
+        type: string
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Fetch Hive Stats
+      run: |
+        USER="${{ github.event.inputs.username }}"
+        mkdir -p data
+        curl -s "https://api.playhive.com/v0/game/all/all/$USER" > data/$USER.json
+
+    - name: Commit results
+      run: |
+        git config user.name "github-actions"
+        git config user.email "github-actions@github.com"
+        git add data/*.json
+        git commit -m "Updated stats for ${{ github.event.inputs.username }}" || echo "No changes"
+        git push
