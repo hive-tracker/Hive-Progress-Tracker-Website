@@ -1,24 +1,32 @@
 const REPO_OWNER = "hive-tracker";
 const REPO_NAME = "Hive-Progress-Tracker-Website";
 
-async function createIssue(username) {
-  await fetch(`https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/issues`, {
-    method: "POST",
-    headers: {
-      "Accept": "application/vnd.github+json"
-    },
+async function addToQueue(username) {
+  const url = `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents/queue.json`;
+
+  const res = await fetch(url);
+  const file = await res.json();
+  const sha = file.sha;
+  const queue = JSON.parse(atob(file.content));
+
+  if (!queue.includes(username)) queue.push(username);
+
+  await fetch(url, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      title: `FETCH:${username}`,
-      body: `Generate stats for ${username}`
+      message: `Queue ${username}`,
+      content: btoa(JSON.stringify(queue)),
+      sha
     })
   });
 }
 
 async function waitForStats(username) {
-  for (let i = 0; i < 20; i++) {
+  for (let i = 0; i < 60; i++) {
     const res = await fetch(`data/${username}.json?cacheBust=${Date.now()}`);
     if (res.ok) return await res.json();
-    await new Promise(r => setTimeout(r, 3000));
+    await new Promise(r => setTimeout(r, 2000));
   }
   return null;
 }
@@ -29,11 +37,11 @@ async function loadStats() {
 
   document.getElementById("results").innerHTML = "<p>Loading...</p>";
 
-  await createIssue(user);
+  await addToQueue(user);
   const data = await waitForStats(user);
 
   if (!data) {
-    document.getElementById("results").innerHTML = "<p>User not found or API slow.</p>";
+    document.getElementById("results").innerHTML = "<p>Timed out.</p>";
     return;
   }
 
@@ -41,15 +49,12 @@ async function loadStats() {
   container.innerHTML = "";
 
   for (const mode in data) {
-    const stats = data[mode];
-    if (!stats) continue;
-
-    const xp = stats.xp || 0;
+    const xp = data[mode]?.xp || 0;
 
     container.innerHTML += `
       <div class="card">
         <h2>${mode}</h2>
-        <p>XP: ${xp.toLocaleString()}</p>
+        <p>XP: ${xp}</p>
       </div>
     `;
   }
