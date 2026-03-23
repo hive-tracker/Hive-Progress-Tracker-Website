@@ -1,12 +1,12 @@
 name: Fetch Hive Stats
 
 on:
-  issues:
-    types: [opened]
+  schedule:
+    - cron: "*/1 * * * *"   # every minute
+  workflow_dispatch:
 
 permissions:
   contents: write
-  issues: write
 
 jobs:
   fetch:
@@ -16,28 +16,30 @@ jobs:
     - name: Checkout repo
       uses: actions/checkout@v3
 
-    - name: Extract username
-      id: extract
+    - name: Read queue
+      id: queue
       run: |
-        USER=$(echo "${{ github.event.issue.title }}" | sed 's/FETCH://')
-        echo "USER=$USER" >> $GITHUB_ENV
+        if [ ! -f queue.json ]; then echo "[]" > queue.json; fi
+        echo "QUEUE=$(cat queue.json)" >> $GITHUB_ENV
 
-    - name: Fetch Hive Stats
+    - name: Process queue
       run: |
         mkdir -p data
-        curl -s "https://api.playhive.com/v0/game/all/all/${USER}" > data/${USER}.json
+        USERS=$(jq -r '.[]' queue.json)
+
+        for USER in $USERS; do
+          echo "Fetching $USER"
+          curl -s "https://api.playhive.com/v0/game/all/all/$USER" > data/$USER.json
+        done
+
+    - name: Clear queue
+      run: |
+        echo "[]" > queue.json
 
     - name: Commit results
       run: |
         git config user.name "github-actions"
         git config user.email "github-actions@github.com"
-        git add data/${USER}.json
-        git commit -m "Updated stats for ${USER}" || echo "No changes"
+        git add data/*.json queue.json
+        git commit -m "Updated stats" || echo "No changes"
         git push
-
-    - name: Close issue
-      run: |
-        curl -X PATCH \
-        -H "Accept: application/vnd.github+json" \
-        -d '{"state":"closed"}' \
-        https://api.github.com/repos/${{ github.repository }}/issues/${{ github.event.issue.number }}
